@@ -5,4 +5,4 @@ nltk
 joblib
 plotly
 gensim
-sckikit-learn
+scikit-learn
