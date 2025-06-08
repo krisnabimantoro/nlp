@@ -4,3 +4,5 @@ numpy
 nltk
 joblib
 plotly
+gensim
+sckikit-learn
