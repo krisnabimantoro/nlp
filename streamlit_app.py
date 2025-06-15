@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -31,11 +32,11 @@ def load_glove_embeddings():
     """Load GloVe embeddings from file"""
     glove_files = [
         'glove.6B.300d.txt',
-        'glove.6B.200d.txt', 
+        'glove.6B.200d.txt',
         'glove.6B.100d.txt',
         'glove.6B.50d.txt'
     ]
-    
+
     for glove_file in glove_files:
         try:
             embeddings_dict = {}
@@ -51,7 +52,7 @@ def load_glove_embeddings():
             return embeddings_dict, embedding_dim, glove_file
         except FileNotFoundError:
             continue
-    
+
     st.warning("No GloVe embeddings file found. GloVe option will be disabled.")
     return None, None, None
 
@@ -60,7 +61,7 @@ def load_glove_embeddings():
 def load_models():
     """Load trained models and preprocessors"""
     models = {}
-    
+
     # Try to load TF-IDF Decision Tree models
     try:
         models['tfidf_dt_classifier'] = joblib.load('tfidf_decision_tree_classifier.pkl')
@@ -68,14 +69,14 @@ def load_models():
         models['tfidf_dt_available'] = True
     except FileNotFoundError:
         models['tfidf_dt_available'] = False
-    
+
     # Try to load TF-IDF Naive Bayes models
     try:
         models['tfidf_nb_classifier'] = joblib.load('tfidf_naive_bayes_classifier.pkl')
         models['tfidf_nb_available'] = True
     except FileNotFoundError:
         models['tfidf_nb_available'] = False
-    
+
     # Try to load GloVe Gaussian Naive Bayes models
     try:
         models['glove_gaussian_nb_classifier'] = joblib.load('glove_gaussian_nb_classifier.pkl')
@@ -84,7 +85,7 @@ def load_models():
         models['glove_gaussian_nb_available'] = True
     except FileNotFoundError:
         models['glove_gaussian_nb_available'] = False
-    
+
     # Try to load GloVe Decision Tree models (RESTORED FROM OLD VERSION)
     try:
         models['glove_dt_classifier'] = joblib.load('glove_emotion_classifier.pkl')
@@ -93,7 +94,7 @@ def load_models():
         models['glove_dt_available'] = True
     except FileNotFoundError:
         models['glove_dt_available'] = False
-    
+
     # Try to load Bag of Words Decision Tree models
     try:
         models['bow_dt_classifier'] = joblib.load('bow_decision_tree_classifier.pkl')
@@ -101,14 +102,14 @@ def load_models():
         models['bow_dt_available'] = True
     except FileNotFoundError:
         models['bow_dt_available'] = False
-    
+
     # Try to load Bag of Words Naive Bayes models
     try:
         models['bow_nb_classifier'] = joblib.load('bow_naive_bayes_classifier.pkl')
         models['bow_nb_available'] = True
     except FileNotFoundError:
         models['bow_nb_available'] = False
-    
+
     return models
 
 # Text preprocessing functions
@@ -118,15 +119,15 @@ def preprocess_text(text):
     text = re.sub(r'\d+', '', text)
     text = text.translate(str.maketrans('', '', string.punctuation))
     text = re.sub(' +', ' ', text).strip()
-    
+
     tokens = word_tokenize(text)
-    
+
     stop_words = set(stopwords.words('english'))
     tokens = [word for word in tokens if word.lower() not in stop_words]
-    
+
     stemmer = PorterStemmer()
     tokens = [stemmer.stem(word) for word in tokens]
-    
+
     return ' '.join(tokens)
 
 def preprocess_text_for_glove(text):
@@ -135,12 +136,12 @@ def preprocess_text_for_glove(text):
     text = re.sub(r'\d+', '', text)
     text = re.sub(r'[^\w\s\'\-]', ' ', text)
     text = re.sub(' +', ' ', text).strip()
-    
+
     tokens = word_tokenize(text)
-    
+
     stop_words = set(stopwords.words('english'))
     tokens = [word for word in tokens if word.lower() not in stop_words and len(word) > 1]
-    
+
     return tokens
 
 # GloVe embedding functions
@@ -148,12 +149,12 @@ def text_to_glove_vector(tokens, embeddings, embedding_dim):
     """Convert tokenized text to GloVe vector representation"""
     vectors = []
     found_words = 0
-    
+
     for token in tokens:
         if token in embeddings:
             vectors.append(embeddings[token])
             found_words += 1
-    
+
     if vectors:
         return np.mean(vectors, axis=0), found_words, len(tokens)
     else:
@@ -163,19 +164,19 @@ def get_glove_embedding(tokens, embeddings_dict, embedding_dim=300):
     """Convert tokens to sentence embedding using GloVe (legacy function for compatibility)"""
     embeddings = []
     found_words = 0
-    
+
     for token in tokens:
         if token in embeddings_dict:
             embeddings.append(embeddings_dict[token])
             found_words += 1
         else:
             embeddings.append(np.zeros(embedding_dim))
-    
+
     if embeddings:
         sentence_embedding = np.mean(embeddings, axis=0)
     else:
         sentence_embedding = np.zeros(embedding_dim)
-    
+
     return sentence_embedding, found_words, len(tokens)
 
 # Prediction functions
@@ -183,64 +184,64 @@ def predict_emotion_tfidf(lyrics_text, vectorizer, classifier):
     """Predict emotion using TF-IDF"""
     processed_text = preprocess_text(lyrics_text)
     features = vectorizer.transform([processed_text]).toarray()
-    
+
     prediction = classifier.predict(features)[0]
     probabilities = classifier.predict_proba(features)[0] if hasattr(classifier, 'predict_proba') else None
-    
+
     return prediction, probabilities, {}
 
 def predict_emotion_bow(lyrics_text, vectorizer, classifier):
     """Predict emotion using Bag of Words"""
     processed_text = preprocess_text(lyrics_text)
     features = vectorizer.transform([processed_text]).toarray()
-    
+
     prediction = classifier.predict(features)[0]
     probabilities = classifier.predict_proba(features)[0] if hasattr(classifier, 'predict_proba') else None
-    
+
     return prediction, probabilities, {}
 
 def predict_emotion_glove_gaussian_nb(lyrics_text, glove_dict, embedding_dim, scaler, classifier):
     """Predict emotion using GloVe + Gaussian Naive Bayes"""
     tokens = preprocess_text_for_glove(lyrics_text)
-    
+
     vector, found_words, total_words = text_to_glove_vector(tokens, glove_dict, embedding_dim)
-    
+
     scaled_features = scaler.transform([vector])
-    
+
     prediction = classifier.predict(scaled_features)[0]
     probabilities = classifier.predict_proba(scaled_features)[0] if hasattr(classifier, 'predict_proba') else None
-    
+
     coverage = found_words / total_words if total_words > 0 else 0
-    
+
     return prediction, probabilities, {'coverage': coverage}
 
 def predict_emotion_glove_dt(lyrics_text, glove_dict, tfidf_vectorizer, scaler, classifier, embedding_dim=300):
     """Predict emotion using GloVe Decision Tree (RESTORED FROM OLD VERSION)"""
     processed_text = preprocess_text(lyrics_text)
     tokens = processed_text.split()
-    
+
     # GloVe embedding
     glove_features, found_words, total_words = get_glove_embedding(tokens, glove_dict, embedding_dim)
-    
+
     # TF-IDF features
     tfidf_features = tfidf_vectorizer.transform([processed_text]).toarray()[0]
-    
+
     # Combine and predict
     combined_features = np.hstack([glove_features, tfidf_features])
     scaled_features = scaler.transform([combined_features])
-    
+
     prediction = classifier.predict(scaled_features)[0]
     probabilities = classifier.predict_proba(scaled_features)[0] if hasattr(classifier, 'predict_proba') else None
-    
+
     coverage = found_words / total_words if total_words > 0 else 0
-    
+
     return prediction, probabilities, {'coverage': coverage}
 
 # Get available models and representations
 def get_available_models_and_representations(models):
     """Get available models with their supported text representations"""
     model_representations = {}
-    
+
     # Decision Tree representations
     dt_reps = []
     if models.get('tfidf_dt_available', False):
@@ -249,10 +250,10 @@ def get_available_models_and_representations(models):
         dt_reps.append("Bag of Words")
     if models.get('glove_dt_available', False):  # RESTORED
         dt_reps.append("GloVe")
-    
+
     if dt_reps:
         model_representations["Decision Tree"] = dt_reps
-    
+
     # Naive Bayes representations
     nb_reps = []
     if models.get('tfidf_nb_available', False):
@@ -261,10 +262,10 @@ def get_available_models_and_representations(models):
         nb_reps.append("Bag of Words")
     if models.get('glove_gaussian_nb_available', False):
         nb_reps.append("GloVe")
-    
+
     if nb_reps:
         model_representations["Naive Bayes"] = nb_reps
-    
+
     return model_representations
 
 # Get model information
@@ -277,12 +278,12 @@ def get_model_info(algorithm, representation):
         'advantages': [],
         'features': ''
     }
-    
+
     # Algorithm-specific info
     if algorithm == "Decision Tree":
         info['advantages'] = [
             "Interpretable decision rules",
-            "Handles non-linear relationships", 
+            "Handles non-linear relationships",
             "No probabilistic assumptions",
             "Feature importance insights"
         ]
@@ -293,7 +294,7 @@ def get_model_info(algorithm, representation):
             "Good with small datasets",
             "Handles irrelevant features well"
         ]
-    
+
     # Representation-specific info
     if representation == "TF-IDF":
         info['features'] = "Term Frequency-Inverse Document Frequency"
@@ -307,7 +308,7 @@ def get_model_info(algorithm, representation):
     elif representation == "GloVe":  # RESTORED
         info['features'] = "Word embeddings"
         info['description'] = "Combines semantic word embeddings with frequency-based features for better context understanding."
-    
+
     return info
 
 # Main prediction function
@@ -324,10 +325,10 @@ def make_prediction(lyrics_text, algorithm, representation, models, glove_embedd
             ), models['bow_dt_classifier']
         elif representation == "GloVe":  # RESTORED
             return predict_emotion_glove_dt(
-                lyrics_text, glove_embeddings, models['glove_dt_tfidf'], 
+                lyrics_text, glove_embeddings, models['glove_dt_tfidf'],
                 models['glove_dt_scaler'], models['glove_dt_classifier'], embedding_dim
             ), models['glove_dt_classifier']
-    
+
     elif algorithm == "Naive Bayes":
         if representation == "TF-IDF":
             return predict_emotion_tfidf(
@@ -339,10 +340,10 @@ def make_prediction(lyrics_text, algorithm, representation, models, glove_embedd
             ), models['bow_nb_classifier']
         elif representation == "GloVe":
             return predict_emotion_glove_gaussian_nb(
-                lyrics_text, glove_embeddings, embedding_dim, 
+                lyrics_text, glove_embeddings, embedding_dim,
                 models['glove_scaler'], models['glove_gaussian_nb_classifier']
             ), models['glove_gaussian_nb_classifier']
-    
+
     raise ValueError(f"Unsupported combination: {algorithm} + {representation}")
 
 # Main Streamlit app
@@ -352,34 +353,34 @@ def main():
         page_icon="🎵",
         layout="wide"
     )
-    
+
     st.title("🎵 Lyrics Emotion Classification Dashboard")
     st.markdown("Classify emotions in song lyrics using different algorithms and text representations")
-    
+
     # Initialize resources
     if not download_nltk_resources():
         st.warning("Some NLTK resources couldn't be downloaded. The app may not work properly.")
-    
+
     # Load models and embeddings
     with st.spinner("Loading models and embeddings..."):
         glove_embeddings, embedding_dim, glove_file = load_glove_embeddings()
         models = load_models()
-    
+
     # Get available models and representations
     model_representations = get_available_models_and_representations(models)
-    
+
     if not model_representations:
         st.error("No models available. Please ensure model files are in the correct location.")
         return
-    
+
     st.success(f"✅ Models loaded successfully!")
     if glove_embeddings is not None:
         st.info(f"GloVe loaded: {glove_file} ({embedding_dim}D)")
-    
+
     # Sidebar for model selection
     with st.sidebar:
         st.header("🔧 Model Configuration")
-        
+
         # Select algorithm first
         available_algorithms = list(model_representations.keys())
         selected_algorithm = st.selectbox(
@@ -387,7 +388,7 @@ def main():
             available_algorithms,
             help="Select the machine learning algorithm for classification"
         )
-        
+
         # Select representation based on algorithm
         available_reps = model_representations[selected_algorithm]
         selected_representation = st.selectbox(
@@ -395,18 +396,18 @@ def main():
             available_reps,
             help="Select how text will be converted to numerical features"
         )
-        
+
         # Get model info
         model_info = get_model_info(selected_algorithm, selected_representation)
-        
+
         st.header("📊 Model Information")
         st.write(f"**Algorithm:** {model_info['algorithm']}")
         st.write(f"**Representation:** {model_info['representation']}")
         st.write(f"**Features:** {model_info['features']}")
-        
+
         if model_info['description']:
             st.info(model_info['description'])
-        
+
         # Get classifier for additional info
         try:
             _, classifier = make_prediction("test", selected_algorithm, selected_representation, models, glove_embeddings, embedding_dim)
@@ -414,49 +415,138 @@ def main():
             st.write(f"**Available Emotions:** {', '.join(classifier.classes_[:3])}{'...' if len(classifier.classes_) > 3 else ''}")
         except:
             pass
-        
+
         # Algorithm advantages
         st.header("⚖️ Algorithm Advantages")
         st.write(f"**{selected_algorithm}:**")
         for advantage in model_info['advantages']:
             st.write(f"• {advantage}")
-    
+
     # Main content tabs
     tab1, tab2, tab3 = st.tabs(["🔤 Single Prediction", "📁 Batch Prediction", "⚖️ Model Comparison"])
-    
+
     with tab1:
         st.header("Single Lyrics Classification")
-        
+
         # Show selected configuration
         st.info(f"Using: **{selected_algorithm} + {selected_representation}**")
-        
+
+       # Dummy lyrics section
+        st.subheader("📝 Sample Lyrics")
+        dummy_lyrics = """I can see you standin', honey
+With his arms around your body
+Laughin' but the joke's not funny at all
+And it took you five whole minutes
+To pack us up and leave me with it
+Holdin' all this love out here in the hall
+
+I think I've seen this film before
+And I didn't like the ending
+You're not my homeland anymore
+So what am I defendin' now?
+You were my town
+Now I'm in exile seein' you out
+I think I've seen this film before
+
+Hoo, hoo-ooh
+Hoo, hoo-ooh
+Hoo, hoo-ooh
+
+[Taylor Swift:]
+I can see you starin', honey
+Like he's just your understudy
+Like you'd get your knuckles bloody for me
+Second, third, and hundredth chances
+Balancin' on breaking branches
+Those eyes add insult to injury
+
+I think I've seen this film before
+And I didn't like the ending
+I'm not your problem anymore
+So who am I offending now?
+You were my crown
+Now I'm in exile seein' you out
+I think I've seen this film before
+So I'm leavin' out the side door
+
+[Justin Vernon, Taylor Swift:]
+So step right out
+There is no amount
+Of cryin' I can do for you
+
+All this time
+We always walked a very thin line
+You didn't even hear me out (You didn't even hear me out)
+You never gave a warning sign (I gave so many signs)
+
+All this time
+I never learned to read your mind (Never learned to read my mind)
+I couldn't turn things around (You never turned things around)
+'Cause you never gave a warning sign (I gave so many signs)
+So many signs
+So many signs (You didn't even see the signs)
+
+I think I've seen this film before
+And I didn't like the ending
+You're not my homeland anymore
+So what am I defending now?
+You were my town
+Now I'm in exile seein' you out
+I think I've seen this film before
+So I'm leaving out the side door
+
+So step right out
+There is no amount
+Of cryin' I can do for you
+
+All this time
+We always walked a very thin line
+You didn't even hear me out (didn't even hear me out)
+You never gave a warning sign (I gave so many signs)
+
+All this time
+I never learned to read your mind (Never learned to read my mind)
+I couldn't turn things around (You never turned things around)
+'Cause you never gave a warning sign (I gave so many signs)
+You never gave a warning sign (All this time)
+(So many times) I never learned to read your mind
+(So many signs) I couldn't turn things around (I couldn't turn things around)
+'Cause you never gave a warning sign (You never gave a warning sign)
+You never gave a warning sign
+Ah, ah"""
+
+        with st.expander("📋 Click to copy sample lyrics", expanded=True):
+            st.code(dummy_lyrics, language=None)
+            st.info("👆 Click the copy button in the top-right corner of the code box above")
+
         # Text input
         lyrics_input = st.text_area(
             "Enter song lyrics:",
             placeholder="Type or paste your song lyrics here...",
-            height=150
+            height=150,
+            key="model_copmarison_lyric"
         )
-        
+
         if st.button("🎭 Predict Emotion", type="primary"):
             if lyrics_input.strip():
                 with st.spinner("Analyzing lyrics..."):
                     try:
                         (prediction, probabilities, extra_info), classifier = make_prediction(
-                            lyrics_input, selected_algorithm, selected_representation, 
+                            lyrics_input, selected_algorithm, selected_representation,
                             models, glove_embeddings, embedding_dim
                         )
-                        
+
                         # Results
                         col1, col2 = st.columns(2)
-                        
+
                         with col1:
                             st.subheader("🎯 Prediction Result")
                             st.success(f"**Predicted Emotion: {prediction.title()}**")
-                            
+
                             # Show additional info if available
                             if 'coverage' in extra_info:
                                 st.info(f"**Vocabulary Coverage: {extra_info['coverage']:.1%}**")
-                            
+
                             # Show processed text preview
                             if selected_representation in ["GloVe", "GloVe"]:
                                 if selected_representation == "GloVe":
@@ -467,7 +557,7 @@ def main():
                                 processed = preprocess_text(lyrics_input)
                             with st.expander("🔍 Processed Text Preview"):
                                 st.text(processed[:200] + "..." if len(processed) > 200 else processed)
-                        
+
                         with col2:
                             st.subheader("📊 Confidence Scores")
                             if probabilities is not None:
@@ -475,11 +565,11 @@ def main():
                                     'Emotion': classifier.classes_,
                                     'Probability': probabilities
                                 }).sort_values('Probability', ascending=False)
-                                
+
                                 # Bar chart
                                 fig = px.bar(
-                                    prob_df, 
-                                    x='Probability', 
+                                    prob_df,
+                                    x='Probability',
                                     y='Emotion',
                                     orientation='h',
                                     title=f"Emotion Probabilities",
@@ -488,7 +578,7 @@ def main():
                                 )
                                 fig.update_layout(height=400)
                                 st.plotly_chart(fig, use_container_width=True)
-                                
+
                                 # Show top 3 predictions
                                 st.subheader("🥇 Top 3 Predictions")
                                 for i, row in prob_df.head(3).iterrows():
@@ -496,51 +586,74 @@ def main():
                                     st.write(f"{confidence_emoji} **{row['Emotion'].title()}**: {row['Probability']:.3f}")
                             else:
                                 st.warning("Probability scores not available for this model.")
-                    
+
                     except Exception as e:
                         st.error(f"Error making prediction: {str(e)}")
             else:
                 st.warning("Please enter some lyrics to analyze.")
-    
+
     with tab2:
         st.header("Batch Lyrics Classification")
-        
+
         # Show selected configuration
         st.info(f"Using: **{selected_algorithm} + {selected_representation}**")
+
+        # Load dummy data button
+        col1, col2 = st.columns([1, 3])
+        with col1:
+            if st.button("📊 Load Sample Data", help="Load sample lyrics data for testing"):
+                try:
+                    sample_df = pd.read_csv('sample_lyrics.csv')
+                    st.session_state['uploaded_df'] = sample_df
+                    st.success(f"✅ Loaded {len(sample_df)} sample lyrics")
+                except FileNotFoundError:
+                    st.error("❌ sample_lyrics.csv not found")
+                except Exception as e:
+                    st.error(f"❌ Error loading sample data: {str(e)}")
+
+        with col2:
+            st.write("")  # Empty space for alignment
         
-        # File upload
         uploaded_file = st.file_uploader(
             "Upload CSV file with lyrics",
             type=['csv'],
             help="CSV should have a 'lyrics' column"
         )
-        
+
+        # Check if we have data from either upload or sample load
+        df = None
         if uploaded_file is not None:
+            df = pd.read_csv(uploaded_file)
+            st.success(f"✅ Loaded {len(df)} rows from uploaded file")
+        elif 'uploaded_df' in st.session_state:
+            df = st.session_state['uploaded_df']
+            st.info(f"📊 Using sample data ({len(df)} rows)")
+
+        if df is not None:
             try:
                 # Read CSV
-                df = pd.read_csv(uploaded_file)
                 st.success(f"✅ Loaded {len(df)} rows")
-                
+
                 # Show preview
                 st.subheader("📋 Data Preview")
                 st.dataframe(df.head(), use_container_width=True)
-                
+
                 # Check for lyrics column
                 if 'lyrics' not in df.columns:
                     st.error("CSV file must contain a 'lyrics' column")
                     st.stop()
-                
+
                 # Process button
                 if st.button("🚀 Process All Lyrics", type="primary"):
                     with st.spinner("Processing lyrics..."):
                         predictions = []
                         confidences = []
                         extra_infos = []
-                        
+
                         # Progress bar
                         progress_bar = st.progress(0)
                         status_text = st.empty()
-                        
+
                         for idx, lyrics in enumerate(df['lyrics']):
                             if pd.isna(lyrics) or lyrics.strip() == '':
                                 predictions.append('unknown')
@@ -549,7 +662,7 @@ def main():
                             else:
                                 try:
                                     (pred, probs, extra), classifier = make_prediction(
-                                        lyrics, selected_algorithm, selected_representation, 
+                                        lyrics, selected_algorithm, selected_representation,
                                         models, glove_embeddings, embedding_dim
                                     )
                                     predictions.append(pred)
@@ -559,28 +672,28 @@ def main():
                                     predictions.append('error')
                                     confidences.append(0.0)
                                     extra_infos.append({})
-                            
+
                             # Update progress
                             progress = (idx + 1) / len(df)
                             progress_bar.progress(progress)
                             status_text.text(f"Processing {idx + 1}/{len(df)} lyrics...")
-                        
+
                         # Add results to dataframe
                         df['predicted_emotion'] = predictions
                         df['confidence'] = confidences
-                        
+
                         # Add coverage if available (GloVe models)
                         if selected_representation in ["GloVe", "GloVe"]:
                             coverages = [info.get('coverage', 0.0) for info in extra_infos]
                             df['vocabulary_coverage'] = coverages
-                        
+
                         progress_bar.empty()
                         status_text.empty()
                         st.success("✅ Processing completed!")
-                    
+
                     # Results
                     col1, col2 = st.columns(2)
-                    
+
                     with col1:
                         st.subheader("📊 Emotion Distribution")
                         emotion_counts = pd.Series(predictions).value_counts()
@@ -590,20 +703,20 @@ def main():
                             title=f"Distribution ({selected_algorithm} + {selected_representation})"
                         )
                         st.plotly_chart(fig_pie, use_container_width=True)
-                    
+
                     with col2:
                         st.subheader("📈 Statistics")
                         st.metric("Total Processed", len(df))
                         st.metric("Average Confidence", f"{np.mean(confidences):.3f}")
-                        
+
                         if selected_representation in ["GloVe", "GloVe"]:
                             coverages = [info.get('coverage', 0.0) for info in extra_infos]
                             st.metric("Average Coverage", f"{np.mean(coverages):.1%}")
-                    
+
                     # Show results table
                     st.subheader("🗂️ Detailed Results")
                     st.dataframe(df, use_container_width=True)
-                    
+
                     # Download results
                     csv_buffer = StringIO()
                     df.to_csv(csv_buffer, index=False)
@@ -613,22 +726,110 @@ def main():
                         file_name=f"emotion_results_{selected_algorithm.lower().replace(' ', '_')}_{selected_representation.lower().replace(' ', '_').replace('+', '_')}.csv",
                         mime="text/csv"
                     )
-                    
+
             except Exception as e:
                 st.error(f"Error processing file: {str(e)}")
-        
+
         else:
             st.info("👆 Please upload a CSV file to get started")
-    
+
     with tab3:
         st.header("Model Comparison")
-        
+
+# Dummy lyrics section
+        st.subheader("📝 Sample Lyrics")
+        dummy_lyrics = """I can see you standin', honey
+With his arms around your body
+Laughin' but the joke's not funny at all
+And it took you five whole minutes
+To pack us up and leave me with it
+Holdin' all this love out here in the hall
+
+I think I've seen this film before
+And I didn't like the ending
+You're not my homeland anymore
+So what am I defendin' now?
+You were my town
+Now I'm in exile seein' you out
+I think I've seen this film before
+
+Hoo, hoo-ooh
+Hoo, hoo-ooh
+Hoo, hoo-ooh
+
+[Taylor Swift:]
+I can see you starin', honey
+Like he's just your understudy
+Like you'd get your knuckles bloody for me
+Second, third, and hundredth chances
+Balancin' on breaking branches
+Those eyes add insult to injury
+
+I think I've seen this film before
+And I didn't like the ending
+I'm not your problem anymore
+So who am I offending now?
+You were my crown
+Now I'm in exile seein' you out
+I think I've seen this film before
+So I'm leavin' out the side door
+
+[Justin Vernon, Taylor Swift:]
+So step right out
+There is no amount
+Of cryin' I can do for you
+
+All this time
+We always walked a very thin line
+You didn't even hear me out (You didn't even hear me out)
+You never gave a warning sign (I gave so many signs)
+
+All this time
+I never learned to read your mind (Never learned to read my mind)
+I couldn't turn things around (You never turned things around)
+'Cause you never gave a warning sign (I gave so many signs)
+So many signs
+So many signs (You didn't even see the signs)
+
+I think I've seen this film before
+And I didn't like the ending
+You're not my homeland anymore
+So what am I defending now?
+You were my town
+Now I'm in exile seein' you out
+I think I've seen this film before
+So I'm leaving out the side door
+
+So step right out
+There is no amount
+Of cryin' I can do for you
+
+All this time
+We always walked a very thin line
+You didn't even hear me out (didn't even hear me out)
+You never gave a warning sign (I gave so many signs)
+
+All this time
+I never learned to read your mind (Never learned to read my mind)
+I couldn't turn things around (You never turned things around)
+'Cause you never gave a warning sign (I gave so many signs)
+You never gave a warning sign (All this time)
+(So many times) I never learned to read your mind
+(So many signs) I couldn't turn things around (I couldn't turn things around)
+'Cause you never gave a warning sign (You never gave a warning sign)
+You never gave a warning sign
+Ah, ah"""
+
+        with st.expander("📋 Click to copy sample lyrics", expanded=True):
+            st.code(dummy_lyrics, language=None)
+            st.info("👆 Click the copy button in the top-right corner of the code box above")
+
         # Get all available combinations
         all_combinations = []
         for algorithm, representations in model_representations.items():
             for representation in representations:
                 all_combinations.append((algorithm, representation))
-        
+                
         if len(all_combinations) > 1:
             comparison_text = st.text_area(
                 "Enter lyrics to compare all available models:",
@@ -636,18 +837,18 @@ def main():
                 height=100,
                 key="comparison_input"
             )
-            
+
             if st.button("🔍 Compare All Models", type="secondary") and comparison_text.strip():
                 with st.spinner("Running comparison across all models..."):
                     comparison_results = []
-                    
+
                     for algorithm, representation in all_combinations:
                         try:
                             (pred, probs, extra), classifier = make_prediction(
-                                comparison_text, algorithm, representation, 
+                                comparison_text, algorithm, representation,
                                 models, glove_embeddings, embedding_dim
                             )
-                            
+
                             max_confidence = max(probs) if probs is not None else 0.0
                             comparison_results.append({
                                 'Algorithm': algorithm,
@@ -659,20 +860,20 @@ def main():
                             })
                         except Exception as e:
                             st.error(f"Error with {algorithm} + {representation}: {str(e)}")
-                    
+
                     # Display comparison
                     if comparison_results:
                         comparison_df = pd.DataFrame(comparison_results)
-                        
+
                         col1, col2 = st.columns(2)
-                        
+
                         with col1:
                             st.subheader("📊 Comparison Results")
                             display_df = comparison_df[['Model', 'Prediction', 'Confidence']]
                             if 'Coverage' in comparison_df.columns and comparison_df['Coverage'].notna().any():
                                 display_df = comparison_df[['Model', 'Prediction', 'Confidence', 'Coverage']]
                             st.dataframe(display_df, use_container_width=True)
-                        
+
                         with col2:
                             st.subheader("📈 Confidence Comparison")
                             fig_comparison = px.bar(
@@ -687,13 +888,13 @@ def main():
                             fig_comparison.update_traces(texttemplate='%{text:.3f}', textposition='outside')
                             fig_comparison.update_layout(height=500)
                             st.plotly_chart(fig_comparison, use_container_width=True)
-                        
+
                         # Highlight best performing model
                         best_model = comparison_df.loc[comparison_df['Confidence'].idxmax()]
                         st.success(f"🏆 **Highest Confidence:** {best_model['Model']} with {best_model['Confidence']:.3f} confidence predicting '{best_model['Prediction']}'")
         else:
             st.info("Only one model combination available. Load more models to enable comparison.")
-    
+
     # Footer
     st.markdown("---")
     total_combinations = sum(len(reps) for reps in model_representations.values())
